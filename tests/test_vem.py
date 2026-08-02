@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from vem import core
 
 
@@ -77,6 +79,32 @@ def test_python_is_found_on_path(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, "-m", "vem", "--house", os.fspath(tmp_path / "house"),
          "create", "--python", "selected-python", os.fspath(project / ".venv")],
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    metadata_path = next((tmp_path / "house" / "environments").glob("*/metadata.json"))
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["python"]["requested_executable"] == os.fspath(python)
+
+
+@pytest.mark.parametrize("version_option", ["-v", "--ver"])
+def test_python_version_shorthand(tmp_path: Path, version_option: str) -> None:
+    project = tmp_path / "project"
+    commands = tmp_path / "commands"
+    project.mkdir()
+    commands.mkdir()
+    python = commands / "python3.11"
+    python.symlink_to(sys.executable)
+
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join((os.fspath(commands), env.get("PATH", "")))
+    env["PYTHONPATH"] = os.fspath(Path(__file__).parents[1] / "src")
+    result = subprocess.run(
+        [sys.executable, "-m", "vem", "--house", os.fspath(tmp_path / "house"),
+         "create", version_option, "3.11", os.fspath(project / ".venv")],
         text=True,
         capture_output=True,
         env=env,

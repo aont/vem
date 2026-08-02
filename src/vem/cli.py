@@ -29,8 +29,14 @@ def parser() -> argparse.ArgumentParser:
 
     create = sub.add_parser("create", help="create an environment and link")
     create.add_argument("--name")
-    create.add_argument("--python", default=sys.executable,
-                        help="Python executable path or command name (searched on PATH)")
+    python_selection = create.add_mutually_exclusive_group()
+    python_selection.add_argument(
+        "--python", help="Python executable path or command name (searched on PATH)"
+    )
+    python_selection.add_argument(
+        "-v", "--ver", metavar="VERSION",
+        help="use the pythonVERSION command (for example, -v 3.11 uses python3.11)",
+    )
     add_link_type(create)
     create.add_argument("link_path")
 
@@ -101,7 +107,8 @@ def assert_unique_name(registry: dict[str, Any], name: str | None) -> None:
 def command_create(house: House, args: argparse.Namespace) -> None:
     validate_name(args.name)
     destination = normalize(args.link_path)
-    requested = resolve_python(args.python)
+    python_command = f"python{args.ver}" if args.ver is not None else (args.python or sys.executable)
+    requested = resolve_python(python_command)
     kind = link_type(args.link_type)
     with house.lock():
         house.initialize()
@@ -112,7 +119,7 @@ def command_create(house: House, args: argparse.Namespace) -> None:
         if not destination.parent.is_dir():
             raise VemError(f"link parent directory does not exist: {destination.parent}", 5)
         if requested is None or not requested.is_file():
-            raise VemError(f"Python executable does not exist: {args.python}", 10)
+            raise VemError(f"Python executable does not exist: {python_command}", 10)
         env_id = str(uuid.uuid4())
         while env_id in registry["environments"] or (house.environments / env_id).exists():
             env_id = str(uuid.uuid4())
