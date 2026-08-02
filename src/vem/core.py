@@ -55,6 +55,22 @@ def resolve_house(option: str | None) -> Path:
     return normalize(option or os.environ.get("VEM_HOUSE") or default_house())
 
 
+def _python_candidates(value: str) -> tuple[str, ...]:
+    if os.name == "nt" and not value.lower().endswith(".exe"):
+        return value, f"{value}.exe"
+    return (value,)
+
+
+def resolve_python(value: str) -> Path | None:
+    """Resolve a Python command or path, including commands found on PATH."""
+    expanded = os.path.expandvars(os.path.expanduser(value))
+    for candidate in _python_candidates(expanded):
+        executable = shutil.which(candidate)
+        if executable is not None:
+            return normalize(executable)
+    return None
+
+
 def validate_name(name: str | None) -> None:
     if name is None:
         return

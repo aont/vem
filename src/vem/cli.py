@@ -16,8 +16,8 @@ from typing import Any
 from . import __version__
 from .core import (House, VemError, atomic_json, create_link, delete_link,
                    inspect_link, link_type, normalize, now, path_key,
-                   probe_python, python_in, resolve_house, validate_name,
-                   validate_uuid, venv_path)
+                   probe_python, python_in, resolve_house, resolve_python,
+                   validate_name, validate_uuid, venv_path)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -29,7 +29,8 @@ def parser() -> argparse.ArgumentParser:
 
     create = sub.add_parser("create", help="create an environment and link")
     create.add_argument("--name")
-    create.add_argument("--python", default=sys.executable)
+    create.add_argument("--python", default=sys.executable,
+                        help="Python executable path or command name (searched on PATH)")
     add_link_type(create)
     create.add_argument("link_path")
 
@@ -100,7 +101,7 @@ def assert_unique_name(registry: dict[str, Any], name: str | None) -> None:
 def command_create(house: House, args: argparse.Namespace) -> None:
     validate_name(args.name)
     destination = normalize(args.link_path)
-    requested = normalize(args.python)
+    requested = resolve_python(args.python)
     kind = link_type(args.link_type)
     with house.lock():
         house.initialize()
@@ -110,8 +111,8 @@ def command_create(house: House, args: argparse.Namespace) -> None:
             raise VemError(f"link destination already exists: {destination}", 4)
         if not destination.parent.is_dir():
             raise VemError(f"link parent directory does not exist: {destination.parent}", 5)
-        if not requested.is_file():
-            raise VemError(f"Python executable does not exist: {requested}", 10)
+        if requested is None or not requested.is_file():
+            raise VemError(f"Python executable does not exist: {args.python}", 10)
         env_id = str(uuid.uuid4())
         while env_id in registry["environments"] or (house.environments / env_id).exists():
             env_id = str(uuid.uuid4())
@@ -394,4 +395,3 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, shutil.Error) as exc:
         print(f"vem: filesystem error: {exc}", file=sys.stderr)
         return 5
-

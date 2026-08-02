@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from vem import core
+
 
 def run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
@@ -59,3 +61,35 @@ def test_rejects_unsafe_names(tmp_path: Path) -> None:
     project.mkdir()
     result = run(tmp_path, "create", "--name", "../bad", os.fspath(project / ".venv"))
     assert result.returncode == 2
+
+
+def test_python_is_found_on_path(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    commands = tmp_path / "commands"
+    project.mkdir()
+    commands.mkdir()
+    python = commands / "selected-python"
+    python.symlink_to(sys.executable)
+
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join((os.fspath(commands), env.get("PATH", "")))
+    env["PYTHONPATH"] = os.fspath(Path(__file__).parents[1] / "src")
+    result = subprocess.run(
+        [sys.executable, "-m", "vem", "--house", os.fspath(tmp_path / "house"),
+         "create", "--python", "selected-python", os.fspath(project / ".venv")],
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    metadata_path = next((tmp_path / "house" / "environments").glob("*/metadata.json"))
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["python"]["requested_executable"] == os.fspath(python)
+
+
+def test_windows_python_candidates_include_exe(monkeypatch) -> None:
+    monkeypatch.setattr(core.os, "name", "nt")
+
+    assert core._python_candidates("python") == ("python", "python.exe")
+    assert core._python_candidates("python.EXE") == ("python.EXE",)

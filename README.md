@@ -12,6 +12,8 @@ vem link --name my-project ../other/.venv
 vem doctor
 ```
 
+`vem create --python PYTHON` accepts either an executable path or a command name
+found on `PATH`. On Windows, the `.exe` suffix may be omitted.
+
 Use `--house PATH` or `VEM_HOUSE` to select a separate house. The default is the
 platform application-data directory. Run `vem COMMAND --help` for all options.
-
